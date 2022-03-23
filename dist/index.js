@@ -8116,6 +8116,9 @@ function findVersion() {
     }
     return version;
 }
+function findWorkingDirectory() {
+    return core.getInput('working-directory') || "";
+}
 async function downloadMaturin(tag) {
     let name;
     let zip = false;
@@ -8235,7 +8238,9 @@ async function dockerBuild(tag, manylinux, args) {
     }
     commands.push(`maturin ${args.join(' ')}`);
     const workspace = process.env.GITHUB_WORKSPACE;
-    const scriptPath = path.join(workspace, 'run-maturin-action.sh');
+    const working_directory = findWorkingDirectory();
+    const finalDirectory = `${workspace}${working_directory}`;
+    const scriptPath = path.join(finalDirectory, 'run-maturin-action.sh');
     (0, fs_1.writeFileSync)(scriptPath, commands.join('\n'));
     await fs_1.promises.chmod(scriptPath, 0o755);
     const targetDir = getCargoTargetDir(args);
@@ -8257,7 +8262,7 @@ async function dockerBuild(tag, manylinux, args) {
         'run',
         '--rm',
         '--workdir',
-        workspace,
+        finalDirectory,
         '-e',
         'DEBIAN_FRONTEND=noninteractive',
         '-e',

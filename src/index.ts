@@ -6,7 +6,7 @@ import * as io from '@actions/io'
 import * as mexec from './exec'
 import * as path from 'path'
 import * as tc from '@actions/tool-cache'
-import {existsSync, promises as fs, writeFileSync} from 'fs'
+import { existsSync, promises as fs, writeFileSync } from 'fs'
 import stringArgv from 'string-argv'
 
 const IS_MACOS = process.platform === 'darwin'
@@ -172,6 +172,13 @@ function findVersion(): string {
 }
 
 /**
+ * Find working directory
+ */
+function findWorkingDirectory(): string {
+  return core.getInput('working-directory') || ""
+}
+
+/**
  * Download and return the path to an executable maturin tool
  * @param string tag The tag to download
  */
@@ -328,11 +335,14 @@ async function dockerBuild(
 
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const workspace = process.env.GITHUB_WORKSPACE!
-  const scriptPath = path.join(workspace, 'run-maturin-action.sh')
+  const working_directory = findWorkingDirectory()
+  const finalDirectory = `${workspace}${working_directory}`
+  const scriptPath = path.join(finalDirectory, 'run-maturin-action.sh')
   writeFileSync(scriptPath, commands.join('\n'))
   await fs.chmod(scriptPath, 0o755)
 
   const targetDir = getCargoTargetDir(args)
+
 
   core.startGroup('Cleanup build scripts artifact directory')
   const debugBuildDir = path.join(targetDir, 'debug', 'build')
@@ -349,11 +359,12 @@ async function dockerBuild(
   }
   core.endGroup()
 
+
   const exitCode = await exec.exec('docker', [
     'run',
     '--rm',
     '--workdir',
-    workspace,
+    finalDirectory,
     // A list of environment variables
     '-e',
     'DEBIAN_FRONTEND=noninteractive',
@@ -513,7 +524,7 @@ async function innerMain(): Promise<void> {
     core.startGroup('Install maturin')
     core.info(`Installing 'maturin' from tag '${tag}'`)
     const maturinPath = await installMaturin(tag)
-    await exec.exec(maturinPath, ['--version'], {ignoreReturnCode: true})
+    await exec.exec(maturinPath, ['--version'], { ignoreReturnCode: true })
     if (IS_LINUX) {
       await exec.exec('python3', ['-m', 'pip', 'install', 'patchelf'])
     }
@@ -563,7 +574,7 @@ async function innerMain(): Promise<void> {
       }
       fullCommand = `${maturinPath} ${command} ${uploadArgs.join(' ')}`
     }
-    exitCode = await exec.exec(fullCommand, undefined, {env})
+    exitCode = await exec.exec(fullCommand, undefined, { env })
   }
   if (exitCode !== 0) {
     throw new Error(`maturin: returned ${exitCode}`)
